@@ -11,14 +11,15 @@
   }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
+    version = "2026.7.6.4939";
 
-    # Fixed-output derivation: exchanges a stored refresh token for a fresh access token, calls the signed-URL endpoint, and downloads the tarball.
+    # Fixed-output derivation (FOD): exchanges a stored refresh token for a fresh access token, calls the signed-URL endpoint, and downloads the tarball.
     # The output is pinned by hash so it's only re-fetched when the version changes.
     # The token is embedded in the derivation at eval time; the FOD output is content-addressed so the build only runs once regardless of token rotation.
     # Usage: KSA_REFRESH_TOKEN=$(cat "${XDG_CONFIG_HOME:-~/.config}/ksa/refresh-token") nix build --impure
-    #        (create "${XDG_CONFIG_HOME:-~/.config}/ksa/" and run `nix run .#get-token` once to obtain a refresh token)
+    #        (create "${XDG_CONFIG_HOME:-~/.config}/ksa/" and run `nix run .#get-token > "${XDG_CONFIG_HOME:-~/.config}/ksa/refresh-token"` to obtain a refresh token)
     ksaTarball = pkgs.stdenvNoCC.mkDerivation {
-      name = "ksa-tarball-2026.7.6.4939.tar.gz";
+      name = "ksa-tarball-${version}";
 
       nativeBuildInputs = [pkgs.curl pkgs.jq pkgs.cacert];
 
@@ -129,7 +130,7 @@
           echo "The Keycloak adapter holds tokens in memory, so use the Network tab:" >&2
           echo "" >&2
           echo "  1. Open DevTools (F12) → Network tab" >&2
-          echo "  2. Check 'Preserve log' in Chrome or click the gear and then check "Persist Logs" in Firefox"" >&2
+          echo "  2. Check 'Preserve log' in Chrome or click the gear and then check "Persist Logs" in Firefox" >&2
           echo "  3. Refresh the page (Ctrl+R)" >&2
           echo "  4. In the filter box type: token" >&2
           echo "  5. Click the POST request to auth.ahwoo.com/.../token" >&2
@@ -153,8 +154,7 @@
             --data-urlencode "refresh_token=$refresh_token" \
             'https://auth.ahwoo.com/realms/ahwoo/protocol/openid-connect/token')
 
-          # Keycloak rotates refresh tokens on each use — save the NEW one from
-          # the validation response, not the original (which is now invalidated).
+          # Keycloak rotates refresh tokens on each use. Save the NEW one from the validation response, not the original (which is now invalidated).
           new_refresh_token=$(echo "$result" | jq -r '.refresh_token // empty')
 
           if [ -n "$new_refresh_token" ]; then
